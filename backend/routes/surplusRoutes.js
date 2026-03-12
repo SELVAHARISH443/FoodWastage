@@ -6,9 +6,10 @@ const {
     getSurplusById,
     deleteSurplus
 } = require('../controllers/surplusController');
+const authMiddleware = require('../middleware/authMiddleware');
 
-// POST /api/surplus - Create new surplus food report
-router.post('/', createSurplus);
+// POST /api/surplus - Create new surplus food report (requires auth)
+router.post('/', authMiddleware, createSurplus);
 
 // GET /api/surplus - Get all active surplus food
 router.get('/', getAllSurplus);
@@ -16,7 +17,9 @@ router.get('/', getAllSurplus);
 // GET /api/surplus/:id - Get specific surplus food item
 router.get('/:id', getSurplusById);
 
-// DELETE /api/surplus/:id - Mark surplus as collected
-router.delete('/:id', deleteSurplus);
+// DELETE /api/surplus/:id - Mark surplus as collected (requires auth)
+router.delete('/:id', authMiddleware, deleteSurplus);
+
+module.exports = router;
 
 module.exports = router;

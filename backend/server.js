@@ -5,6 +5,7 @@ require('dotenv').config();
 
 const recipeRoutes = require('./routes/recipeRoutes');
 const surplusRoutes = require('./routes/surplusRoutes');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
@@ -19,14 +20,14 @@ app.use((req, res, next) => {
     next();
 });
 
-// MongoDB Connection
+// MongoDB Connection (optional - demo mode works without it)
 const connectDB = async () => {
     try {
         await mongoose.connect(process.env.MONGODB_URI);
         console.log('✅ MongoDB Connected Successfully');
     } catch (error) {
-        console.error('❌ MongoDB Connection Error:', error.message);
-        process.exit(1);
+        console.warn('⚠️ MongoDB Connection Error:', error.message);
+        console.log('⚠️ Running in DEMO MODE - using hardcoded credentials, some features unavailable');
     }
 };
 
@@ -38,12 +39,14 @@ app.get('/', (req, res) => {
         message: 'Food Wastage Reduction API',
         version: '1.0.0',
         endpoints: {
+            auth: '/api/auth',
             recipes: '/api/recipes',
             surplus: '/api/surplus'
         }
     });
 });
 
+app.use('/api/auth', authRoutes);
 app.use('/api/recipes', recipeRoutes);
 app.use('/api/surplus', surplusRoutes);
 
@@ -63,7 +66,9 @@ app.use((err, req, res, next) => {
 
 // Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`📡 API available at http://localhost:${PORT}/api`);
-});
+
+if (require.main === module) {
+    app.listen(PORT);
+}
+
+module.exports = app;

@@ -6,6 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { createSurplus } from "@/services/api";
@@ -17,11 +24,52 @@ const ReportSurplus = () => {
     dishName: "",
     quantity: "",
     location: "",
+    district: "",
     notes: "",
     expiresIn: "",
     provider: "",
     contact: "",
   });
+
+  const districts = [
+    "Ariyalur",
+    "Chengalpattu",
+    "Chennai",
+    "Coimbatore",
+    "Cuddalore",
+    "Dharmapuri",
+    "Dindigul",
+    "Erode",
+    "Kallakurichi",
+    "Kancheepuram",
+    "Kanyakumari",
+    "Karur",
+    "Krishnagiri",
+    "Madurai",
+    "Nagapattinam",
+    "Namakkal",
+    "Nilgiris",
+    "Perambalur",
+    "Pudukkottai",
+    "Ramanathapuram",
+    "Ranipet",
+    "Salem",
+    "Sivaganga",
+    "Tenkasi",
+    "Thanjavur",
+    "Theni",
+    "Thoothukudi",
+    "Tiruchirappalli",
+    "Tirunelveli",
+    "Tirupathur",
+    "Tiruppur",
+    "Tiruvallur",
+    "Tiruvannamalai",
+    "Tiruvarur",
+    "Vellore",
+    "Viluppuram",
+    "Virudhunagar"
+  ];
 
   const estimatedPeople = form.quantity ? Math.floor(Number(form.quantity) / 0.4) : 0;
 
@@ -45,7 +93,7 @@ const ReportSurplus = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.dishName || !form.quantity || !form.location || !form.provider || !form.contact) {
+    if (!form.dishName || !form.quantity || !form.location || !form.district || !form.provider || !form.contact) {
       toast({
         title: "Missing fields",
         description: "Please fill in all required fields.",
@@ -81,7 +129,7 @@ const ReportSurplus = () => {
             <Button
               onClick={() => {
                 setSubmitted(false);
-                setForm({ dishName: "", quantity: "", location: "", notes: "", expiresIn: "", provider: "", contact: "" });
+                setForm({ dishName: "", quantity: "", location: "", district: "", notes: "", expiresIn: "", provider: "", contact: "" });
               }}
               variant="outline"
               className="mt-6"
@@ -159,16 +207,33 @@ const ReportSurplus = () => {
                     </div>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Pickup Location *</Label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="e.g. Community Kitchen, MG Road"
-                      value={form.location}
-                      onChange={(e) => setForm({ ...form, location: e.target.value })}
-                      className="pl-9"
-                    />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Pickup Location *</Label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="e.g. Community Kitchen, MG Road"
+                        value={form.location}
+                        onChange={(e) => setForm({ ...form, location: e.target.value })}
+                        className="pl-9"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>District *</Label>
+                    <Select value={form.district} onValueChange={(value) => setForm({ ...form, district: value })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select district" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {districts.map((district) => (
+                          <SelectItem key={district} value={district}>
+                            {district}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">

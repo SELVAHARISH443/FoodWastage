@@ -1,44 +1,99 @@
-const SurplusFood = require('../models/SurplusFood');
+// Demo storage with simple file persistence so data survives restarts
+const fs = require('fs');
+const path = require('path');
+
+const DATA_DIR = path.join(__dirname, '..', 'data');
+const SURPLUS_FILE = path.join(DATA_DIR, 'surplus.json');
+
+let DEMO_SURPLUS_ITEMS = [];
+
+// ensure data directory exists
+if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// load existing items from file at startup
+if (fs.existsSync(SURPLUS_FILE)) {
+    try {
+        const raw = fs.readFileSync(SURPLUS_FILE, 'utf8');
+        DEMO_SURPLUS_ITEMS = JSON.parse(raw) || [];
+        console.log(`✅ Loaded ${DEMO_SURPLUS_ITEMS.length} surplus items from disk`);
+    } catch (err) {
+        console.error('⚠️ Failed to load surplus data:', err.message);
+        DEMO_SURPLUS_ITEMS = [];
+    }
+}
+
+// helper to save current items to disk
+const persistSurplus = () => {
+    try {
+        fs.writeFileSync(SURPLUS_FILE, JSON.stringify(DEMO_SURPLUS_ITEMS, null, 2));
+    } catch (err) {
+        console.error('⚠️ Failed to persist surplus data:', err.message);
+    }
+};
 
 // Create new surplus food report
 const createSurplus = async (req, res) => {
     try {
         console.log('📥 Received surplus food request:', req.body);
-        const { dishName, quantity, location, notes, expiresIn, provider, contact } = req.body;
+        const { dishName, quantity, location, district, notes, expiresIn, provider, contact } = req.body;
 
         // Validation
-        if (!dishName || !quantity || !location || !expiresIn || !provider || !contact) {
+        if (!dishName || !quantity || !location || !district || !expiresIn || !provider || !contact) {
             console.log('❌ Validation failed - missing fields');
             return res.status(400).json({
-                message: 'Missing required fields: dishName, quantity, location, expiresIn, provider, contact'
+                success: false,
+                message: 'Missing required fields: dishName, quantity, location, district, expiresIn, provider, contact'
             });
         }
 
         console.log('✅ Validation passed, creating surplus object...');
-        const surplus = new SurplusFood({
+        
+        // Demo mode: create in-memory record
+        const surplus = {
+            _id: `demo-${Date.now()}`,
             dishName,
             quantity: parseFloat(quantity),
             location,
+            district,
             notes: notes || '',
             expiresIn: parseInt(expiresIn),
             provider,
-            contact
-        });
+            contact,
+            userId: req.userId,
+            userName: req.userId,
+            isActive: true,
+            createdAt: new Date(),
+            expiresAt: new Date(Date.now() + parseInt(expiresIn) * 60 * 60 * 1000) // hours to milliseconds
+        };
 
-        console.log('💾 Saving to database...');
-        await surplus.save();
-        console.log('✅ Surplus saved successfully:', surplus._id);
+        DEMO_SURPLUS_ITEMS.push(surplus);
+        persistSurplus();
+        console.log('✅ Surplus stored and persisted:', surplus._id);
+
+        // Send email notification (will skip in demo mode if email is disabled)
+        try {
+            const { sendFoodPostedNotification } = require('../utils/emailService');
+            await sendFoodPostedNotification(surplus, { name: surplus.userName, email: req.userId, role: 'surplus' }, []);
+        } catch (emailError) {
+            console.error('Error sending emails:', emailError.message);
+            // Don't fail the request if email fails
+        }
 
         res.status(201).json({
-            message: 'Surplus food reported successfully',
+            success: true,
+            message: 'Surplus food reported successfully!',
             data: surplus
         });
     } catch (error) {
         console.error('❌ Error creating surplus:');
         console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-        console.error('Full error:', error);
-        res.status(500).json({ message: 'Error creating surplus food report', error: error.message });
+        res.status(500).json({ 
+            success: false,
+            message: 'Error creating surplus food report', 
+            error: error.message 
+        });
     }
 };
 
@@ -46,54 +101,67 @@ const createSurplus = async (req, res) => {
 const getAllSurplus = async (req, res) => {
     try {
         const now = new Date();
+        const activeSurplus = DEMO_SURPLUS_ITEMS.filter(item => 
+            item.isActive && new Date(item.expiresAt) > now
+        ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-        const surplusItems = await SurplusFood.find({
-            isActive: true,
-            expiresAt: { $gt: now }
-        })
-            .sort({ createdAt: -1 })
-            .select('-__v');
-
-        res.json(surplusItems);
+        res.json(activeSurplus);
     } catch (error) {
         console.error('Error fetching surplus:', error);
-        res.status(500).json({ message: 'Error fetching surplus food', error: error.message });
+        res.status(500).json({ 
+            success: false,
+            message: 'Error fetching surplus food', 
+            error: error.message 
+        });
     }
 };
 
 // Get specific surplus food item
 const getSurplusById = async (req, res) => {
     try {
-        const surplus = await SurplusFood.findById(req.params.id).select('-__v');
+        const surplus = DEMO_SURPLUS_ITEMS.find(item => item._id === req.params.id);
 
         if (!surplus) {
-            return res.status(404).json({ message: 'Surplus food item not found' });
+            return res.status(404).json({ 
+                success: false,
+                message: 'Surplus food item not found' 
+            });
         }
 
         res.json(surplus);
     } catch (error) {
         console.error('Error fetching surplus item:', error);
-        res.status(500).json({ message: 'Error fetching surplus food item', error: error.message });
+        res.status(500).json({ 
+            success: false,
+            message: 'Error fetching surplus food item', 
+            error: error.message 
+        });
     }
 };
 
 // Delete surplus food (mark as collected)
 const deleteSurplus = async (req, res) => {
     try {
-        const surplus = await SurplusFood.findByIdAndUpdate(
-            req.params.id,
-            { isActive: false },
-            { new: true }
-        );
+        const surplus = DEMO_SURPLUS_ITEMS.find(item => item._id === req.params.id);
 
         if (!surplus) {
-            return res.status(404).json({ message: 'Surplus food item not found' });
+            return res.status(404).json({ 
+                success: false,
+                message: 'Surplus food item not found' 
+            });
         }
 
-        res.json({ message: 'Surplus food marked as collected', data: surplus });
+        surplus.isActive = false;
+        persistSurplus();
+
+        res.json(surplus);
     } catch (error) {
         console.error('Error deleting surplus:', error);
-        res.status(500).json({ message: 'Error deleting surplus food', error: error.message });
+        res.status(500).json({ 
+            success: false,
+            message: 'Error deleting surplus food', 
+            error: error.message 
+        });
     }
 };
 

@@ -1,9 +1,11 @@
 import { motion } from "framer-motion";
-import { Heart, MapPin, Clock, Users, Phone, Loader2 } from "lucide-react";
+import { Heart, MapPin, Clock, Users, Phone, Loader2, Filter } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { getAllSurplus } from "@/services/api";
 
@@ -12,6 +14,7 @@ interface FoodListing {
   dishName: string;
   quantity: number;
   location: string;
+  district: string;
   createdAt: string;
   expiresIn: number;
   expiresAt: string;
@@ -23,6 +26,47 @@ interface FoodListing {
 
 const AvailableFood = () => {
   const { toast } = useToast();
+  const [selectedDistrict, setSelectedDistrict] = useState<string>("all");
+
+  const districts = [
+    "Ariyalur",
+    "Chengalpattu",
+    "Chennai",
+    "Coimbatore",
+    "Cuddalore",
+    "Dharmapuri",
+    "Dindigul",
+    "Erode",
+    "Kallakurichi",
+    "Kancheepuram",
+    "Kanyakumari",
+    "Karur",
+    "Krishnagiri",
+    "Madurai",
+    "Nagapattinam",
+    "Namakkal",
+    "Nilgiris",
+    "Perambalur",
+    "Pudukkottai",
+    "Ramanathapuram",
+    "Ranipet",
+    "Salem",
+    "Sivaganga",
+    "Tenkasi",
+    "Thanjavur",
+    "Theni",
+    "Thoothukudi",
+    "Tiruchirappalli",
+    "Tirunelveli",
+    "Tirupathur",
+    "Tiruppur",
+    "Tiruvallur",
+    "Tiruvannamalai",
+    "Tiruvarur",
+    "Vellore",
+    "Viluppuram",
+    "Virudhunagar"
+  ];
 
   // Fetch surplus food with auto-refresh every 30 seconds
   const { data: listings = [], isLoading, error } = useQuery<FoodListing[]>({
@@ -30,6 +74,11 @@ const AvailableFood = () => {
     queryFn: getAllSurplus,
     refetchInterval: 30000, // Auto-refresh every 30 seconds
   });
+
+  // Filter listings based on selected district
+  const filteredListings = selectedDistrict === "all" 
+    ? listings 
+    : listings.filter(listing => listing.district === selectedDistrict);
 
   const handleContact = (listing: FoodListing) => {
     toast({
@@ -113,23 +162,51 @@ const AvailableFood = () => {
 
         <div className="mb-6 flex items-center gap-2">
           <Badge variant="outline" className="border-primary text-primary">
-            {listings.length} listings available
+            {filteredListings.length} listings available
           </Badge>
           <Badge variant="secondary">
-            ~{listings.reduce((a, b) => a + b.estimatedPeople, 0)} people can be fed
+            ~{filteredListings.reduce((a, b) => a + b.estimatedPeople, 0)} people can be fed
           </Badge>
         </div>
 
-        {listings.length === 0 ? (
+        <div className="mb-6 flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Filter by District:</span>
+          </div>
+          <Select value={selectedDistrict} onValueChange={setSelectedDistrict}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Select district" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Districts</SelectItem>
+              {districts.map((district) => (
+                <SelectItem key={district} value={district}>
+                  {district}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {filteredListings.length === 0 ? (
           <Card className="shadow-soft">
             <CardContent className="pt-6 pb-6 text-center">
-              <p className="text-muted-foreground">No surplus food available at the moment.</p>
-              <p className="text-sm text-muted-foreground mt-2">Check back later or report surplus food to help others.</p>
+              <p className="text-muted-foreground">
+                {selectedDistrict === "all" 
+                  ? "No surplus food available at the moment." 
+                  : `No surplus food available in ${selectedDistrict}.`}
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                {selectedDistrict === "all" 
+                  ? "Check back later or report surplus food to help others." 
+                  : "Try selecting a different district or check back later."}
+              </p>
             </CardContent>
           </Card>
         ) : (
           <div className="grid gap-4">
-            {listings.map((listing, i) => (
+            {filteredListings.map((listing, i) => (
               <motion.div
                 key={listing._id}
                 initial={{ opacity: 0, y: 16 }}
@@ -151,7 +228,7 @@ const AvailableFood = () => {
                         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1.5">
                             <MapPin className="h-4 w-4 text-primary" />
-                            {listing.location}
+                            {listing.location}, {listing.district}
                           </span>
                           <span className="flex items-center gap-1.5">
                             <Clock className="h-4 w-4 text-accent" />

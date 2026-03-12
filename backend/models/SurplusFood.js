@@ -16,6 +16,11 @@ const surplusFoodSchema = new mongoose.Schema({
         required: true,
         trim: true
     },
+    district: {
+        type: String,
+        required: true,
+        trim: true
+    },
     notes: {
         type: String,
         default: ''
@@ -38,6 +43,11 @@ const surplusFoodSchema = new mongoose.Schema({
         type: String,
         required: true,
         trim: true
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
     },
     expiresAt: {
         type: Date

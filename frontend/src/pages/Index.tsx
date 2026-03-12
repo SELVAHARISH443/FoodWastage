@@ -57,14 +57,14 @@ const Index = () => {
               </p>
               <div className="flex flex-wrap gap-3">
                 <Button asChild size="lg" className="gradient-primary border-0 shadow-glow-primary">
-                  <Link to="/chef">
+                  <Link to="/dashboard">
                     <ChefHat className="mr-2 h-5 w-5" />
-                    Chef Dashboard
+                    Open Dashboard
                   </Link>
                 </Button>
                 <Button asChild variant="outline" size="lg">
-                  <Link to="/available">
-                    Find Food
+                  <Link to="/dashboard">
+                    Explore Features
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
@@ -171,7 +171,7 @@ const Index = () => {
               variant="secondary"
               className="mt-8"
             >
-              <Link to="/chef">Get Started Now</Link>
+              <Link to="/dashboard">Get Started Now</Link>
             </Button>
           </div>
         </div>
