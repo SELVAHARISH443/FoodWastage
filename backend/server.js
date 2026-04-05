@@ -1,11 +1,11 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
 require('dotenv').config();
 
+const connectDB = require('./config/db');
 const recipeRoutes = require('./routes/recipeRoutes');
 const surplusRoutes = require('./routes/surplusRoutes');
 const authRoutes = require('./routes/authRoutes');
@@ -53,27 +53,19 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// MongoDB Connection
-const connectDB = async () => {
+// Ensure DB is ready before API handlers (required for Vercel serverless)
+app.use('/api', async (req, res, next) => {
     try {
-        const mongoURI = process.env.MONGODB_URI;
-        if (!mongoURI) {
-            throw new Error('MONGODB_URI is not defined in environment variables');
-        }
-        await mongoose.connect(mongoURI);
-        console.log('✅ MongoDB Connected Successfully');
+        await connectDB();
+        next();
     } catch (error) {
-        console.warn('⚠️ MongoDB Connection Error:', error.message);
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('⚠️ Running in DEMO MODE - some features may be limited');
-        } else {
-            console.error('❌ Critical: MongoDB connection failed in production!');
-            process.exit(1);
-        }
+        console.error('MongoDB connection error:', error.message);
+        return res.status(503).json({
+            success: false,
+            message: 'Database unavailable. Check MONGODB_URI and network access.',
+        });
     }
-};
-
-connectDB();
+});
 
 // Routes
 app.get('/', (req, res) => {

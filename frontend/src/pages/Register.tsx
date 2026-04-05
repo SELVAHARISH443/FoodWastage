@@ -76,7 +76,7 @@ const Register = () => {
       navigate("/dashboard");
     } else {
       toast({
-        title: "Registration Disabled",
+        title: "Registration failed",
         description: result.message,
         variant: "destructive",
       });
