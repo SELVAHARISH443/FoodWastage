@@ -133,7 +133,7 @@ const AvailableFood = () => {
             <div className="text-center">
               <p className="text-destructive font-semibold mb-2">Error loading food listings</p>
               <p className="text-sm text-muted-foreground">
-                Please make sure the backend server is running on http://localhost:5000
+                Please make sure the backend server is running and accessible.
               </p>
             </div>
           </CardContent>
