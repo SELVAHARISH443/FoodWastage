@@ -60,7 +60,7 @@ connectDB();
 // Routes
 app.get('/', (req, res) => {
     res.json({
-        message: 'Food Wastage Reduction API',
+        message: 'server live',
         status: 'Online',
         environment: process.env.NODE_ENV || 'development',
         version: '1.0.0'
