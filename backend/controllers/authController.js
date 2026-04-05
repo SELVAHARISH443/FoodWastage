@@ -1,33 +1,6 @@
 const jwt = require('jsonwebtoken');
 const admin = require('../config/firebase');
-
-// Demo mode: hardcoded credentials for testing (no MongoDB required)
-const DEMO_USERS = {
-    'chef@foodwastage.com': {
-        name: 'Chef User',
-        email: 'chef@foodwastage.com',
-        password: 'chef123',
-        role: 'chef'
-    },
-    'surplus@foodwastage.com': {
-        name: 'Surplus Manager',
-        email: 'surplus@foodwastage.com',
-        password: 'surplus123',
-        role: 'surplus'
-    },
-    'viewer@foodwastage.com': {
-        name: 'Viewer User',
-        email: 'viewer@foodwastage.com',
-        password: 'viewer123',
-        role: 'viewer'
-    },
-    'admin@foodwastage.com': {
-        name: 'Admin User',
-        email: 'admin@foodwastage.com',
-        password: 'admin123',
-        role: 'admin'
-    }
-};
+const User = require('../models/User');
 
 // Generate JWT Token
 const generateToken = (userId) => {
@@ -36,13 +9,30 @@ const generateToken = (userId) => {
     });
 };
 
-// Register User (Demo mode - returns error with upgrade message)
+// Register User
 exports.register = async (req, res) => {
     try {
-        return res.status(503).json({
-            success: false,
-            message: 'Registration currently disabled (demo mode). Use existing credentials to login.',
-            demoUsers: Object.values(DEMO_USERS).map(u => ({ email: u.email, password: u.password, role: u.role }))
+        const { name, email, password, role, phone, location, organization } = req.body;
+
+        const userExists = await User.findOne({ email });
+        if (userExists) {
+            return res.status(400).json({
+                success: false,
+                message: 'User already exists'
+            });
+        }
+
+        const user = await User.create({
+            name, email, password, role, phone, location, organization
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Registration successful',
+            token: generateToken(user._id),
+            user: {
+                id: user._id, name: user.name, email: user.email, role: user.role
+            }
         });
     } catch (error) {
         console.error('Registration error:', error);
@@ -54,12 +44,11 @@ exports.register = async (req, res) => {
     }
 };
 
-// Login User (Demo mode - validates against hardcoded credentials)
+// Login User
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // Validate inputs
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
@@ -67,34 +56,29 @@ exports.login = async (req, res) => {
             });
         }
 
-        // Check demo credentials
-        const demoUser = DEMO_USERS[email];
+        const user = await User.findOne({ email }).select('+password');
 
-        if (!demoUser || demoUser.password !== password) {
+        if (!user || !(await user.matchPassword(password))) {
             return res.status(401).json({
                 success: false,
-                message: 'Invalid email or password',
-                hint: 'Demo mode: Check AUTH_GUIDE.md for valid credentials'
+                message: 'Invalid email or password'
             });
         }
 
-        // Generate token
-        const token = generateToken(email);
-
-        console.log(`✅ Demo login successful for ${email} (${demoUser.role})`);
+        const token = generateToken(user._id);
 
         res.status(200).json({
             success: true,
             message: 'Logged in successfully',
             token,
             user: {
-                id: email,
-                name: demoUser.name,
-                email: demoUser.email,
-                role: demoUser.role,
-                phone: '',
-                location: '',
-                organization: ''
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                phone: user.phone || '',
+                location: user.location || '',
+                organization: user.organization || ''
             }
         });
     } catch (error) {
@@ -110,13 +94,18 @@ exports.login = async (req, res) => {
 // Get current user
 exports.getCurrentUser = async (req, res) => {
     try {
+        const user = await User.findById(req.userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
         return res.status(200).json({
             success: true,
             user: {
-                id: req.userId,
-                name: 'Demo User',
-                email: req.userId,
-                role: 'viewer'
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role
             }
         });
     } catch (error) {
@@ -131,11 +120,12 @@ exports.getCurrentUser = async (req, res) => {
 // Get all users (for admin)
 exports.getAllUsers = async (req, res) => {
     try {
+        const users = await User.find({});
         return res.status(200).json({
             success: true,
-            count: Object.keys(DEMO_USERS).length,
-            users: Object.values(DEMO_USERS).map(u => ({
-                id: u.email,
+            count: users.length,
+            users: users.map(u => ({
+                id: u._id,
                 name: u.name,
                 email: u.email,
                 role: u.role
@@ -150,10 +140,10 @@ exports.getAllUsers = async (req, res) => {
     }
 };
 
-// Google OAuth Login (Bypass Verification for Demo Mode)
+// Google OAuth Login
 exports.googleLogin = async (req, res) => {
     try {
-        const { email, name, googleToken } = req.body;
+        let { email, name, googleToken } = req.body;
 
         if (!email) {
             return res.status(400).json({
@@ -162,70 +152,48 @@ exports.googleLogin = async (req, res) => {
             });
         }
 
-        try {
-            let decodedEmail = email;
-            let decodedName = name || email.split('@')[0];
+        let decodedEmail = email;
+        let decodedName = name || email.split('@')[0];
 
-            // Try to verify token if Firebase Admin is initialized
-            const admin = require('../config/firebase');
-            if (admin && googleToken) {
-                try {
-                    const decodedToken = await admin.auth().verifyIdToken(googleToken);
-                    decodedEmail = decodedToken.email;
-                    decodedName = decodedToken.name || decodedEmail.split('@')[0];
-                } catch (verifyError) {
-                    console.error('Firebase token verification failed:', verifyError.message);
-                    // Only fallback to trusting the body if we are in development mode
-                    if (process.env.NODE_ENV !== 'development') {
-                        return res.status(401).json({
-                            success: false,
-                            message: 'Invalid Google token'
-                        });
-                    }
+        // Optional Token Verification if Firebase is configured
+        if (admin && googleToken) {
+            try {
+                const decodedToken = await admin.auth().verifyIdToken(googleToken);
+                decodedEmail = decodedToken.email;
+                decodedName = decodedToken.name || decodedEmail.split('@')[0];
+            } catch (verifyError) {
+                console.error('Firebase token verification failed:', verifyError.message);
+                if (process.env.NODE_ENV !== 'development') {
+                    return res.status(401).json({ success: false, message: 'Invalid Google token' });
                 }
-            } else if (process.env.NODE_ENV !== 'development') {
-                // If not in development, we MUST have verification
-                return res.status(500).json({
-                    success: false,
-                    message: 'Authentication service not configured'
-                });
             }
+        }
 
-            if (!decodedEmail) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Could not get email from Google account'
-                });
-            }
+        let user = await User.findOne({ email: decodedEmail });
 
-            const token = generateToken(decodedEmail);
-
-            // Create user object from Google profile
-            const user = {
-                id: decodedEmail,
+        if (!user) {
+            // Register new user from Google
+            user = await User.create({
                 name: decodedName,
                 email: decodedEmail,
-                role: 'viewer', // Default role for Google sign-up
-                phone: '',
-                location: '',
-                organization: ''
-            };
-
-            console.log(`✅ Google login successful (bypass) for ${decodedEmail}`);
-
-            res.status(200).json({
-                success: true,
-                message: 'Logged in with Google successfully',
-                token,
-                user
-            });
-        } catch (error) {
-            console.error('Google token verification error:', error);
-            return res.status(401).json({
-                success: false,
-                message: 'Failed to verify Google token'
+                password: Math.random().toString(36).slice(-10), // Random secure password since they login with Google
+                role: 'viewer'
             });
         }
+
+        const token = generateToken(user._id);
+
+        res.status(200).json({
+            success: true,
+            message: 'Logged in with Google successfully',
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role
+            }
+        });
     } catch (error) {
         console.error('Google login error:', error);
         res.status(500).json({

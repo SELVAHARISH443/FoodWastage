@@ -23,16 +23,24 @@ const logFormat = process.env.NODE_ENV === 'production' ? 'combined' : 'dev';
 app.use(morgan(logFormat));
 
 // CORS
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(o => o.trim());
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+    .split(',')
+    .map(o => o.trim().replace(/\/$/, ''));
 
 const corsOptions = {
     origin: (origin, callback) => {
         // Allow requests with no origin (e.g. mobile apps, curl, Postman)
         if (!origin) return callback(null, true);
+        
+        // Clean origin (remove trailing slash) strictly for matching
+        const cleanOrigin = origin.replace(/\/$/, '');
+        
         // Allow explicitly configured origins
-        if (allowedOrigins.includes(origin)) return callback(null, true);
+        if (allowedOrigins.includes(cleanOrigin)) return callback(null, true);
+        
         // Allow any Vercel deployment (*.vercel.app) for preview deployments
-        if (origin.endsWith('.vercel.app')) return callback(null, true);
+        if (cleanOrigin.endsWith('.vercel.app')) return callback(null, true);
+        
         callback(new Error(`CORS: origin ${origin} not allowed`));
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
