@@ -24,7 +24,7 @@ app.use(morgan(logFormat));
 
 // Middleware
 const corsOptions = {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: process.env.FRONTEND_URL,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
@@ -89,7 +89,7 @@ app.use((err, req, res, next) => {
 
 // Start Server
 const PORT = process.env.PORT || 5000;
-const HOST = process.env.BACKEND_URL || `http://localhost:${PORT}`;
+const HOST = process.env.BACKEND_URL;
 
 if (require.main === module) {
     app.listen(PORT, () => {
