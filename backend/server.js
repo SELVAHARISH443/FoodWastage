@@ -22,9 +22,19 @@ app.use(compression());
 const logFormat = process.env.NODE_ENV === 'production' ? 'combined' : 'dev';
 app.use(morgan(logFormat));
 
-// Middleware
+// CORS
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(o => o.trim());
+
 const corsOptions = {
-    origin: process.env.FRONTEND_URL,
+    origin: (origin, callback) => {
+        // Allow requests with no origin (e.g. mobile apps, curl, Postman)
+        if (!origin) return callback(null, true);
+        // Allow explicitly configured origins
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        // Allow any Vercel deployment (*.vercel.app) for preview deployments
+        if (origin.endsWith('.vercel.app')) return callback(null, true);
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
@@ -87,14 +97,11 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Start Server
-const PORT = process.env.PORT || 5000;
-const HOST = process.env.BACKEND_URL;
-
+// Run locally only
 if (require.main === module) {
+    const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
-        console.log(`🚀 Server running in ${process.env.NODE_ENV || 'development'} mode`);
-        console.log(`📡 API URL: ${HOST}`);
+        console.log(`Server running locally on port ${PORT}`);
     });
 }
 
