@@ -4,7 +4,7 @@ const User = require('../models/User');
 
 // Generate JWT Token
 const generateToken = (userId) => {
-    return jwt.sign({ userId }, process.env.JWT_SECRET || 'your-secret-key', {
+    return jwt.sign({ userId: String(userId) }, process.env.JWT_SECRET || 'your-secret-key', {
         expiresIn: '7d'
     });
 };
@@ -12,9 +12,18 @@ const generateToken = (userId) => {
 // Register User
 exports.register = async (req, res) => {
     try {
-        const { name, email, password, role, phone, location, organization } = req.body;
+        const { name, email, password, role, phone, location, organization } = req.body || {};
 
-        const userExists = await User.findOne({ email });
+        if (!name || !email || !password || !role) {
+            return res.status(400).json({
+                success: false,
+                message: 'Name, email, password, and role are required'
+            });
+        }
+
+        const trimmedEmail = String(email).trim().toLowerCase();
+
+        const userExists = await User.findOne({ email: trimmedEmail });
         if (userExists) {
             return res.status(400).json({
                 success: false,
@@ -23,7 +32,13 @@ exports.register = async (req, res) => {
         }
 
         const user = await User.create({
-            name, email, password, role, phone, location, organization
+            name: String(name).trim(),
+            email: trimmedEmail,
+            password,
+            role,
+            phone: phone != null ? String(phone).trim() : '',
+            location: location != null ? String(location).trim() : '',
+            organization: organization != null ? String(organization).trim() : ''
         });
 
         res.status(201).json({
@@ -36,10 +51,26 @@ exports.register = async (req, res) => {
         });
     } catch (error) {
         console.error('Registration error:', error);
+
+        if (error.name === 'ValidationError') {
+            const first = Object.values(error.errors || {})[0];
+            return res.status(400).json({
+                success: false,
+                message: first?.message || 'Invalid registration data'
+            });
+        }
+
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                message: 'An account with this email already exists'
+            });
+        }
+
         res.status(500).json({
             success: false,
             message: 'Error during registration',
-            error: error.message
+            error: process.env.NODE_ENV === 'production' ? undefined : error.message
         });
     }
 };

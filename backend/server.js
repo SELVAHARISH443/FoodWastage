@@ -40,8 +40,10 @@ const corsOptions = {
         
         // Allow any Vercel deployment (*.vercel.app) for preview deployments
         if (cleanOrigin.endsWith('.vercel.app')) return callback(null, true);
-        
-        callback(new Error(`CORS: origin ${origin} not allowed`));
+
+        // Do not pass Error — cors would forward to Express and produce a misleading 500
+        console.warn(`CORS: blocked origin ${origin}`);
+        return callback(null, false);
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
