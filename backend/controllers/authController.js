@@ -1,6 +1,22 @@
 const jwt = require('jsonwebtoken');
-const admin = require('../config/firebase');
 const User = require('../models/User');
+
+function isDuplicateKeyError(err) {
+    if (!err) return false;
+    if (err.code === 11000 || err.code === 11001) return true;
+    if (err.name === 'MongoServerError' && err.code === 11000) return true;
+    return false;
+}
+
+function isDbUnavailableError(err) {
+    if (!err) return false;
+    const n = err.name || '';
+    if (n === 'MongoServerSelectionError' || n === 'MongoNetworkError' || n === 'MongoNotConnectedError') {
+        return true;
+    }
+    const msg = String(err.message || '');
+    return /ECONNREFUSED|ENOTFOUND|ETIMEDOUT|SSL|socket|network|closed/i.test(msg);
+}
 
 // Generate JWT Token
 const generateToken = (userId) => {
@@ -60,16 +76,25 @@ exports.register = async (req, res) => {
             });
         }
 
-        if (error.code === 11000) {
+        if (isDuplicateKeyError(error)) {
             return res.status(400).json({
                 success: false,
                 message: 'An account with this email already exists'
             });
         }
 
+        if (isDbUnavailableError(error)) {
+            return res.status(503).json({
+                success: false,
+                message: 'Database temporarily unavailable. Check MONGODB_URI and Atlas network access.',
+                code: 'DB_UNAVAILABLE'
+            });
+        }
+
         res.status(500).json({
             success: false,
             message: 'Error during registration',
+            code: 'REGISTER_FAILED',
             error: process.env.NODE_ENV === 'production' ? undefined : error.message
         });
     }
@@ -87,7 +112,8 @@ exports.login = async (req, res) => {
             });
         }
 
-        const user = await User.findOne({ email }).select('+password');
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const user = await User.findOne({ email: normalizedEmail }).select('+password');
 
         if (!user || !(await user.matchPassword(password))) {
             return res.status(401).json({
@@ -114,10 +140,17 @@ exports.login = async (req, res) => {
         });
     } catch (error) {
         console.error('Login error:', error);
+        if (isDbUnavailableError(error)) {
+            return res.status(503).json({
+                success: false,
+                message: 'Database temporarily unavailable. Check MONGODB_URI and Atlas network access.',
+                code: 'DB_UNAVAILABLE'
+            });
+        }
         res.status(500).json({
             success: false,
             message: 'Error during login',
-            error: error.message
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 };
@@ -183,14 +216,15 @@ exports.googleLogin = async (req, res) => {
             });
         }
 
-        let decodedEmail = email;
-        let decodedName = name || email.split('@')[0];
+        let decodedEmail = String(email).trim().toLowerCase();
+        let decodedName = name || decodedEmail.split('@')[0];
 
-        // Optional Token Verification if Firebase is configured
-        if (admin && googleToken) {
+        // Optional token verification when Firebase Admin is configured
+        if (googleToken && process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+            const admin = require('../config/firebase');
             try {
                 const decodedToken = await admin.auth().verifyIdToken(googleToken);
-                decodedEmail = decodedToken.email;
+                decodedEmail = String(decodedToken.email || decodedEmail).trim().toLowerCase();
                 decodedName = decodedToken.name || decodedEmail.split('@')[0];
             } catch (verifyError) {
                 console.error('Firebase token verification failed:', verifyError.message);

@@ -32,7 +32,10 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api`;
+const rawApi = import.meta.env.VITE_API_URL;
+const API_BASE_URL = rawApi
+  ? `${String(rawApi).replace(/\/$/, "")}/api`
+  : "/api";
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
